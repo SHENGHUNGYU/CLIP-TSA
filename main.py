@@ -54,6 +54,8 @@ arg_parser.add_argument("--disable_wandb", dest="enable_wandb", action="store_fa
 arg_parser.set_defaults(enable_wandb=True)
 arg_parser.add_argument("--disable_HA", dest="enable_HA", action="store_false")
 arg_parser.set_defaults(enable_HA=True)
+arg_parser.add_argument('--use-ssm', action='store_true', default=False,
+                        help='Replace Non-Local Block in Aggregate with Mamba SSM')
 
 if __name__ == '__main__':
     args = arg_parser.parse_args()
@@ -125,7 +127,7 @@ if __name__ == '__main__':
         best_AUC = -1
     else:
         print("[NOTE] For inference, you must specify: --dataset, --gpu, --k, --seed")
-        model = Model(feature_size, args.batch_size, args.k, args.num_samples, args.enable_HA)
+        model = Model(feature_size, args.batch_size, args.k, args.num_samples, args.enable_HA, args)
 
         if len(args.gpu.split(",")) == 2:
             model = torch.nn.DataParallel(model, device_ids=[0,1])

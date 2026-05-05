@@ -192,6 +192,74 @@ class Aggregate(nn.Module):
 
             return out
 
+class AggregateSSM(nn.Module):
+    def __init__(self, len_feature):
+        super(AggregateSSM, self).__init__()
+        bn = nn.BatchNorm1d
+        self.len_feature = len_feature
+        self.division = 2048 // len_feature
+        self.conv_1 = nn.Sequential(
+            nn.Conv1d(in_channels=len_feature, out_channels=512 // self.division, kernel_size=3,
+                      stride=1,dilation=1, padding=1),
+            nn.ReLU(),
+            bn(512 // self.division)
+        )
+        self.conv_2 = nn.Sequential(
+            nn.Conv1d(in_channels=len_feature, out_channels=512 // self.division, kernel_size=3,
+                      stride=1, dilation=2, padding=2),
+            nn.ReLU(),
+            bn(512 // self.division)
+        )
+        self.conv_3 = nn.Sequential(
+            nn.Conv1d(in_channels=len_feature, out_channels=512 // self.division, kernel_size=3,
+                      stride=1, dilation=4, padding=4),
+            nn.ReLU(),
+            bn(512 // self.division)
+        )
+        self.conv_4 = nn.Sequential(
+            nn.Conv1d(in_channels=2048 // self.division, out_channels=512 // self.division, kernel_size=1,
+                      stride=1, padding=0, bias = False),
+            nn.ReLU(),
+        )
+        self.conv_5 = nn.Sequential(
+            nn.Conv1d(in_channels=2048 // self.division, out_channels=2048 // self.division, kernel_size=3,
+                      stride=1, padding=1, bias=False),
+            nn.ReLU(),
+            nn.BatchNorm1d(2048 // self.division),
+        )
+
+        from mamba_ssm import Mamba
+        self.ssm = Mamba(
+            d_model=512 // self.division,
+            d_state=16,
+            d_conv=4,
+            expand=2,
+        )
+
+    def forward(self, x):
+            out = x.permute(0, 2, 1)
+            residual = out
+
+            out1 = self.conv_1(out)
+            out2 = self.conv_2(out)
+
+            out3 = self.conv_3(out)
+            out_d = torch.cat((out1, out2, out3), dim = 1)
+            out = self.conv_4(out)
+            # Mamba expects (B, T, C); out is currently (B, C, T) from conv_4
+            out = out.permute(0, 2, 1)
+            out = self.ssm(out)
+            out = out.permute(0, 2, 1)
+            out = torch.cat((out_d, out), dim=1)
+            out = self.conv_5(out)
+            out = out + residual
+            assert out.shape == residual.shape, \
+                f"Shape mismatch after SSM block: {out.shape} vs {residual.shape}"
+            out = out.permute(0, 2, 1)
+
+            return out
+
+
 class Model(nn.Module):
     def __init__(self, n_features, batch_size, k=0.0, num_samples=100, apply_HA=True, args=None):
         super(Model, self).__init__()
@@ -209,7 +277,12 @@ class Model(nn.Module):
 
         self.division = 2048 // n_features
 
-        self.Aggregate = Aggregate(len_feature=2048 // self.division)
+        use_ssm = getattr(args, 'use_ssm', False)
+        if use_ssm:
+            self.Aggregate = AggregateSSM(len_feature=2048 // self.division)
+        else:
+            self.Aggregate = Aggregate(len_feature=2048 // self.division)
+        print(f"[Model] Aggregate module: {type(self.Aggregate).__name__}")
         self.fc1 = nn.Linear(n_features, 512 // self.division)
         self.fc2 = nn.Linear(512 // self.division, 128 // self.division)
         self.fc3 = nn.Linear(128 // self.division, 1)

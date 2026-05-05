@@ -1,0 +1,11 @@
+# SSM variant only - skip if using original Non-Local Block
+#
+# Prerequisites: system CUDA toolkit must be 12.x (tested with 12.9).
+# Step 1 - install a CUDA 12.4-compatible PyTorch first:
+#   pip install "torch>=2.2,<2.6" torchvision --index-url https://download.pytorch.org/whl/cu124
+#
+# Step 2 - install SSM deps (uses existing torch, no recompile):
+#   pip install -r requirements_ssm.txt --no-build-isolation
+
+mamba-ssm>=1.2.0   # requires CUDA 12.x; prebuilt wheel for cu124+torch2.x
+causal-conv1d>=1.1.0
