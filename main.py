@@ -72,12 +72,15 @@ if __name__ == '__main__':
     elif os.environ["CUDA_VISIBLE_DEVICES"] in ["2", 2]:
         os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 
+    _g = torch.Generator(device='cuda' if torch.cuda.is_available() else 'cpu')
     train_nloader = DataLoader(Dataset(args, is_normal=True, test_mode=False),
                                batch_size=args.batch_size, shuffle=True,
-                               num_workers=0, pin_memory=False, drop_last=True)
+                               num_workers=0, pin_memory=False, drop_last=True,
+                               generator=_g)
     train_aloader = DataLoader(Dataset(args, is_normal=False, test_mode=False),
                                batch_size=args.batch_size, shuffle=True,
-                               num_workers=0, pin_memory=False, drop_last=True)
+                               num_workers=0, pin_memory=False, drop_last=True,
+                               generator=_g)
     test_loader = DataLoader(Dataset(args, test_mode=True),
                               batch_size=1, shuffle=False,
                               num_workers=0, pin_memory=False)
